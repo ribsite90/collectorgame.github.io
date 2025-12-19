@@ -1,1 +1,1 @@
-# ribsflappybird.github.io
+# collectorgame.github.io
