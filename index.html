@@ -1,221 +1,93 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Top-Down Shooter</title>
-  <style>
-    body {
-      margin: 0;
-      background: #111;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      color: #fff;
-      font-family: Arial, sans-serif;
-    }
-    canvas {
-      background: #000;
-      border: 2px solid #444;
-      cursor: crosshair;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Collector Game</title>
+<style>
+  body {
+    margin: 0;
+    background: #222;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    color: #fff;
+    font-family: Arial, sans-serif;
+  }
+  canvas {
+    background: #333;
+    border: 2px solid #fff;
+  }
+</style>
 </head>
 <body>
-  <canvas id="game" width="640" height="400"></canvas>
+<canvas id="game" width="500" height="400"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
 
-  <script>
-    // ===== Canvas setup =====
-    const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
+let player = { x: 50, y: 50, size: 30, color: 'lime' };
+let score = 0;
 
-    // Force keyboard focus so WASD works
-    canvas.tabIndex = 1;
-    canvas.focus();
+function randomPosition() {
+  return {
+    x: Math.floor(Math.random() * (canvas.width - 20)) + 10,
+    y: Math.floor(Math.random() * (canvas.height - 20)) + 10
+  };
+}
 
-    // ===== Input =====
-    const keys = {};
-    window.addEventListener('keydown', e => keys[e.key] = true);
-    window.addEventListener('keyup', e => keys[e.key] = false);
+let collectible = { x: 200, y: 200, size: 20, color: 'red' };
 
-    const mouse = { x: 0, y: 0, down: false };
-    canvas.addEventListener('mousemove', e => {
-      const r = canvas.getBoundingClientRect();
-      mouse.x = (e.clientX - r.left) * (canvas.width / r.width);
-      mouse.y = (e.clientY - r.top) * (canvas.height / r.height);
-    });
-    canvas.addEventListener('mousedown', () => mouse.down = true);
-    window.addEventListener('mouseup', () => mouse.down = false);
+const keys = {};
+document.addEventListener('keydown', (e) => keys[e.key] = true);
+document.addEventListener('keyup', (e) => keys[e.key] = false);
 
-    // ===== Player =====
-    const player = {
-      x: canvas.width / 2,
-      y: canvas.height / 2,
-      r: 10,
-      speed: 160, // pixels per second
-      fireRate: 0.15,
-      fireCooldown: 0,
-      hp: 5
-    };
+function update() {
+  if (keys['ArrowUp']) player.y -= 4;
+  if (keys['ArrowDown']) player.y += 4;
+  if (keys['ArrowLeft']) player.x -= 4;
+  if (keys['ArrowRight']) player.x += 4;
 
-    // ===== Entities =====
-    const bullets = [];
-    const enemies = [];
-    let score = 0;
+  // Keep player inside canvas
+  player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
+  player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
 
-    // ===== Enemy spawning =====
-    function spawnEnemy() {
-      const edge = Math.floor(Math.random() * 4);
-      let x, y;
-      if (edge === 0) { x = -20; y = Math.random() * canvas.height; }
-      if (edge === 1) { x = canvas.width + 20; y = Math.random() * canvas.height; }
-      if (edge === 2) { x = Math.random() * canvas.width; y = -20; }
-      if (edge === 3) { x = Math.random() * canvas.width; y = canvas.height + 20; }
-      enemies.push({ x, y, r: 10, speed: 60 });
-    }
+  // Check collision with collectible
+  if (player.x < collectible.x + collectible.size &&
+      player.x + player.size > collectible.x &&
+      player.y < collectible.y + collectible.size &&
+      player.y + player.size > collectible.y) {
+    score++;
+    collectible = { ...collectible, ...randomPosition() };
+  }
+}
 
-    let spawnTimer = 0;
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // ===== Update =====
-    function update(dt) {
-      // Movement (WASD)
-      let dx = 0, dy = 0;
-      if (keys['w'] || keys['W']) dy--;
-      if (keys['s'] || keys['S']) dy++;
-      if (keys['a'] || keys['A']) dx--;
-      if (keys['d'] || keys['D']) dx++;
+  // Draw player
+  ctx.fillStyle = player.color;
+  ctx.fillRect(player.x, player.y, player.size, player.size);
 
-      if (dx || dy) {
-        const len = Math.hypot(dx, dy);
-        dx /= len;
-        dy /= len;
-      }
+  // Draw collectible
+  ctx.fillStyle = collectible.color;
+  ctx.beginPath();
+  ctx.arc(collectible.x + collectible.size/2, collectible.y + collectible.size/2, collectible.size/2, 0, Math.PI * 2);
+  ctx.fill();
 
-      player.x += dx * player.speed * dt;
-      player.y += dy * player.speed * dt;
-      player.x = Math.max(player.r, Math.min(canvas.width - player.r, player.x));
-      player.y = Math.max(player.r, Math.min(canvas.height - player.r, player.y));
+  // Draw score
+  ctx.fillStyle = '#fff';
+  ctx.font = '20px Arial';
+  ctx.fillText('Score: ' + score, 10, 25);
+}
 
-      // Shooting
-      player.fireCooldown -= dt;
-      if (mouse.down && player.fireCooldown <= 0) {
-        const ang = Math.atan2(mouse.y - player.y, mouse.x - player.x);
-        bullets.push({
-          x: player.x,
-          y: player.y,
-          vx: Math.cos(ang) * 360,
-          vy: Math.sin(ang) * 360,
-          r: 3
-        });
-        player.fireCooldown = player.fireRate;
-      }
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
 
-      // Bullets update
-      for (let i = bullets.length - 1; i >= 0; i--) {
-        const b = bullets[i];
-        b.x += b.vx * dt;
-        b.y += b.vy * dt;
-        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
-          bullets.splice(i, 1);
-        }
-      }
-
-      // Enemy spawning
-      spawnTimer -= dt;
-      if (spawnTimer <= 0) {
-        spawnEnemy();
-        spawnTimer = Math.max(0.6, 1.2 - score * 0.02);
-      }
-
-      // Enemies update & collisions
-      for (let i = enemies.length - 1; i >= 0; i--) {
-        const e = enemies[i];
-        const ang = Math.atan2(player.y - e.y, player.x - e.x);
-        e.x += Math.cos(ang) * e.speed * dt;
-        e.y += Math.sin(ang) * e.speed * dt;
-
-        // Enemy hits player
-        if (Math.hypot(e.x - player.x, e.y - player.y) < e.r + player.r) {
-          enemies.splice(i, 1);
-          player.hp--;
-          if (player.hp <= 0) reset();
-          continue;
-        }
-
-        // Bullet hits enemy
-        for (let j = bullets.length - 1; j >= 0; j--) {
-          const b = bullets[j];
-          if (Math.hypot(e.x - b.x, e.y - b.y) < e.r + b.r) {
-            enemies.splice(i, 1);
-            bullets.splice(j, 1);
-            score++;
-            break;
-          }
-        }
-      }
-    }
-
-    // ===== Draw =====
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Player
-      ctx.fillStyle = 'lime';
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Aim line
-      ctx.strokeStyle = '#0f0';
-      ctx.beginPath();
-      ctx.moveTo(player.x, player.y);
-      ctx.lineTo(mouse.x, mouse.y);
-      ctx.stroke();
-
-      // Bullets
-      ctx.fillStyle = '#fff';
-      bullets.forEach(b => {
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      // Enemies
-      ctx.fillStyle = 'red';
-      enemies.forEach(e => {
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      // HUD
-      ctx.fillStyle = '#fff';
-      ctx.fillText('Score: ' + score, 10, 18);
-      ctx.fillText('HP: ' + player.hp, 10, 34);
-      ctx.fillText('WASD move | Mouse shoot', 10, 50);
-    }
-
-    // ===== Reset =====
-    function reset() {
-      bullets.length = 0;
-      enemies.length = 0;
-      score = 0;
-      player.hp = 5;
-      player.x = canvas.width / 2;
-      player.y = canvas.height / 2;
-    }
-
-    // ===== Game loop =====
-    let last = performance.now();
-    function loop(now) {
-      const dt = Math.min(0.033, (now - last) / 1000);
-      last = now;
-      update(dt);
-      draw();
-      requestAnimationFrame(loop);
-    }
-
-    loop();
-  </script>
+gameLoop();
+</script>
 </body>
 </html>
